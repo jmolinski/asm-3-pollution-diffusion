@@ -1,9 +1,14 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 // Typ fixed to po prostu integer, ale o interpretacji stałopozycyjnej.
-typedef float fixed;
+typedef uint32_t fixed;
+
+const unsigned FRACTION_BITS = 8;
+
+const float SCALING_FACTOR = 1.0f / (1 << FRACTION_BITS);
 
 // Przygotowuje symulację, np. inicjuje pomocnicze struktury.
 void start(int szer, int wys, fixed *M, fixed waga);
@@ -13,27 +18,42 @@ void start(int szer, int wys, fixed *M, fixed waga);
 // Po jej wykonaniu matryca M (przekazana przez parametr start) zawiera nowy stan.
 void step(fixed T[]);
 
+static inline fixed float_to_fixed(float f) {
+    return roundtol(f / SCALING_FACTOR);
+}
+
+static inline float fixed_to_float(fixed f) {
+    return (float) (f) * SCALING_FACTOR;
+}
+
+static inline fixed read_fixed_from_file(FILE *fp) {
+    float f;
+    fscanf(fp, "%f", &f);
+    if (f < 0) {
+        fprintf(stderr, "Wartość ujemna: %f\n", f);
+        exit(1);
+    }
+    return float_to_fixed(f);
+}
+
 void read_matrix(FILE *fp, fixed *matrix, int columns, int rows) {
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < columns; c++) {
-            // TODO convert decimal
-            fscanf(fp, "%f", &matrix[r * columns + c]);
+            matrix[r * columns + c] = read_fixed_from_file(fp);
         }
     }
 }
 
 void read_data_for_step(FILE *fp, fixed *data_for_step, int rows) {
     for (int r = 0; r < rows; r++) {
-        // TODO convert decimal
-        fscanf(fp, "%f", &data_for_step[r]);
+        data_for_step[r] = read_fixed_from_file(fp);
     }
 }
 
 void print_matrix(fixed *matrix, int columns, int rows) {
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < columns; c++) {
-            // TODO print decimal
-            printf("%.3f\t", matrix[r * columns + c]);
+            printf("%.3f\t", fixed_to_float(matrix[r * columns + c]));
         }
         printf("\n");
     }
@@ -49,17 +69,16 @@ int main(int argc, char *argv[]) {
     }
 
     int columns, rows;
-    float cooler_temperature;
-    fixed coeff;
     fscanf(fp, "%d", &columns);
     fscanf(fp, "%d", &rows);
-    // TODO read decimal
-    fscanf(fp, "%f", &coeff);
+    fixed coeff = read_fixed_from_file(fp);
     fixed *matrix = calloc((columns * rows) * 2, sizeof(fixed));
     read_matrix(fp, matrix, columns, rows);
 
     int steps;
     fscanf(fp, "%d", &steps);
+
+    start(columns, rows, matrix, coeff);
 
     fixed *data_for_step = malloc(sizeof(fixed) * rows);
     for (int i = 1;; i++) {
