@@ -4,7 +4,7 @@
 #include <math.h>
 
 // Typ fixed to po prostu integer, ale o interpretacji stałopozycyjnej.
-typedef uint32_t fixed;
+typedef int32_t fixed;
 
 const unsigned FRACTION_BITS = 8;
 
@@ -18,8 +18,55 @@ void start(int szer, int wys, fixed *M, fixed waga);
 // Po jej wykonaniu matryca M (przekazana przez parametr start) zawiera nowy stan.
 void step(fixed T[]);
 
+fixed waga;
+int wysokosc;
+int szerokosc;
+fixed* matryca;
+
+void start(int szer, int wys, fixed *M, fixed coeff) {
+    szerokosc = szer;
+    wysokosc = wys;
+    matryca = M;
+    waga = coeff;
+}
+
+fixed get_diff(fixed this, int r, int c) {
+    if (c < 0 || c >= szerokosc || r < 0 || r >= wysokosc) {
+        return 0;
+    }
+    return matryca[r * szerokosc + c] - this;
+}
+
+void step(fixed T[]) {
+    fixed* second_part = &matryca[szerokosc * wysokosc];
+
+    for (int i = 0; i < wysokosc; ++i) {
+        second_part[i * szerokosc] = T[i];
+    }
+
+    for (int c = 1; c < szerokosc; c++) {
+        for (int r = 0; r < wysokosc; r++) {
+
+            fixed this = matryca[r * szerokosc + c];
+
+            fixed delta = get_diff(this, r - 1, c) + get_diff(this, r - 1, c - 1) + get_diff(this, r, c - 1) + get_diff(this, r + 1, c) + get_diff(this, r + 1, c - 1);
+            if (delta >= 0) {
+                delta = (delta * waga) >> FRACTION_BITS;
+            } else {
+                delta = -((-delta * waga) >> FRACTION_BITS);
+            }
+
+            second_part[r * szerokosc + c] = matryca[r * szerokosc + c] + delta;
+        }
+    }
+
+    for (int i = 0; i < wysokosc * szerokosc; ++i) {
+        matryca[i] = second_part[i];
+    }
+}
+
 static inline fixed float_to_fixed(float f) {
-    return roundtol(f / SCALING_FACTOR);
+    return (fixed)round(f / SCALING_FACTOR);
 }
 
 static inline float fixed_to_float(fixed f) {
@@ -81,8 +128,8 @@ int main(int argc, char *argv[]) {
     start(columns, rows, matrix, coeff);
 
     fixed *data_for_step = malloc(sizeof(fixed) * rows);
-    for (int i = 1;; i++) {
-        printf("Liczba wykonanych krokow: %d\nStan macierzy:\n", i - 1);
+    for (int i = 0;; i++) {
+        printf("Liczba wykonanych krokow: %d\nStan macierzy:\n", i);
         print_matrix(matrix, columns, rows);
         printf("\n");
 
